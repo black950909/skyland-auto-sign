@@ -21,24 +21,32 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          # 如果沒有 requirements.txt 就直接裝 requests
+          pip install requests
 
       - name: Run skyland.py
         id: skyland_run
         env:
           GitHub_Actions: true
           TOKEN: ${{ secrets.TOKEN }}
-        # 這裡會執行簽到，並把螢幕輸出的文字存進 output.log
-        run: python skyland.py > output.log 2>&1
+        # 使用 bash 的特有寫法確保日誌被正確寫入
+        run: python skyland.py > output.log 2>&1 || true 
 
       - name: Discord Notification
-        if: always() # 不論成功或失敗都會傳送通知
+        if: always()
         env:
-          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
-          # 讀取日誌最後 10 行，確保包含關鍵結果
-          RESULT=$(tail -n 10 output.log)
-          # 使用 curl 將結果發送至 Discord Webhook
+          # 檢查 Webhook 是否存在
+          if [ -z "$WEBHOOK_URL" ]; then
+            echo "錯誤：找不到 DISCORD_WEBHOOK Secret"
+            exit 1
+          fi
+          
+          # 擷取日誌內容
+          RESULT=$(tail -n 15 output.log)
+          
+          # 發送通知
           curl -H "Content-Type: application/json" \
                -d "{\"content\": \"🚀 **明日方舟終末地簽到回報**\n\`\`\`\n$RESULT\n\`\`\`\"}" \
-               $DISCORD_WEBHOOK
+               "$WEBHOOK_URL"
