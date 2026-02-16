@@ -1,9 +1,10 @@
-# run skyland.py
 name: Auto Sign
+
 on:
   schedule:
     - cron: '0 1 * * *'
   workflow_dispatch:
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -11,22 +12,33 @@ jobs:
       TZ: Asia/Shanghai
     steps:
       - uses: actions/checkout@v2
+
       - name: Set up Python 3.8
         uses: actions/setup-python@v2
         with:
           python-version: 3.8
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+
       - name: Run skyland.py
+        id: skyland_run
         env:
           GitHub_Actions: true
-          # 对于多个账号一定会有人机验证问题，且因为是密码，有一定的安全风险
-          # PHONE: ${{ secrets.PHONE }}
-          # PASSWORD: ${{ secrets.PASSWORD }}
           TOKEN: ${{ secrets.TOKEN }}
-          SC3_SENDKEY: ${{ secrets.SC3_SENDKEY }}
-          SC3_UID: ${{ secrets.SC3_UID }}
+        # 這裡會執行簽到，並把螢幕輸出的文字存進 output.log
+        run: python skyland.py > output.log 2>&1
+
+      - name: Discord Notification
+        if: always() # 不論成功或失敗都會傳送通知
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
-          python skyland.py
+          # 讀取日誌最後 10 行，確保包含關鍵結果
+          RESULT=$(tail -n 10 output.log)
+          # 使用 curl 將結果發送至 Discord Webhook
+          curl -H "Content-Type: application/json" \
+               -d "{\"content\": \"🚀 **明日方舟終末地簽到回報**\n\`\`\`\n$RESULT\n\`\`\`\"}" \
+               $DISCORD_WEBHOOK
